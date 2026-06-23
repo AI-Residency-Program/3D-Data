@@ -1,0 +1,5 @@
+# Pipeline tool cache + scratch (rebuilt by ifc2slpk.sh on first run)
+.pipeline/
+
+# logs
+*.log
