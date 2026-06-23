@@ -1,62 +1,45 @@
 # 3D-Data
 
-3D assets for the digital-twin / construction sandbox, plus an open-source pipeline
-that converts IFC building models into selectable, attribute-rich BIM scene layers.
+3D assets for the digital-twin / construction sandbox, plus a pipeline that converts
+IFC building models into glTF (`.glb`) for placement as 3D objects.
 
 ## Layout
 
 ```
 original/    source assets — IFC building models (.ifc) and ready-to-place props (.glb)
-processed/   generated I3S Scene Layer Packages (.slpk) — one per IFC
-ifc2slpk.sh  IFC → I3S SLPK preprocessing pipeline
-pipeline/    helper scripts used by the pipeline
+processed/   generated .glb models, one per IFC
+ifc2glb.sh   IFC → glTF (.glb) conversion pipeline
 ```
 
 ## What the pipeline produces
 
-Each `original/*.ifc` becomes `processed/<name>.slpk`: a georeferenced I3S Scene Layer
-Package that loads in the ArcGIS Maps SDK for JavaScript as a `SceneLayer`. Every
-building element is individually selectable and carries its full IFC property set
-(type/`classe`, GUID, name, and the complete `IfcPropertySet` data) — so clicking an
-element shows its attribute table.
+Each `original/*.ifc` becomes `processed/<name>.glb`. These are placed directly as 3D
+objects in the digital twin — the same path as the prop models (stop sign, traffic
+barrel): an `ObjectSymbol3DLayer` dropped at a clicked point, with free move and
+rotation. Geometry is centred at the origin so the model sits on the chosen point.
 
-The `.glb` files in `original/` are finished props (tree, traffic barrel, stop sign)
-placed directly as `ObjectSymbol3DLayer` objects; they don't need processing.
+The `.glb` files already in `original/` (tree, traffic barrel, stop sign) are finished
+props used directly.
 
 ## Running the pipeline
 
-Requirements: Python 3.11/3.12 (py3dtilers requires < 3.13), Node.js, and an internet
-connection for the first-run dependency install.
+Requirements: Linux x86-64 and an internet connection on the first run (to fetch the
+IfcConvert binary).
 
 ```bash
-./ifc2slpk.sh                          # convert every original/*.ifc at the default location
-./ifc2slpk.sh -98.4936 29.426 198      # convert all at a given lon lat [groundZ-meters]
-./ifc2slpk.sh original/SimpleWall.ifc  # convert a single file
+./ifc2glb.sh                       # convert every original/*.ifc → processed/<name>.glb
+./ifc2glb.sh original/SimpleWall.ifc   # convert a single file
 ```
 
-First run builds a pinned Python venv and installs `tile-converter` under `.pipeline/`
-(gitignored); later runs reuse them.
+First run downloads the IfcConvert binary into `.pipeline/` (gitignored); later runs
+reuse it.
 
 ## How it works
 
 ```
-IFC  ──ifc-tiler (py3dtilers, --with_BTH)──▶  3D Tiles  (b3dm + BIM batch table)
-     ──tile-converter (loaders.gl, --slpk --no-draco)──▶  I3S SLPK
-     ──gzip-normalize──▶  processed/<name>.slpk
+IFC  ──IfcConvert (IfcOpenShell)──▶  processed/<name>.glb
 ```
 
-- **py3dtilers `ifc-tiler`** reads the IFC with IfcOpenShell and emits 3D Tiles,
-  embedding each element's IFC attributes in the batch table (`--with_BTH`).
-- **loaders.gl `tile-converter`** converts those 3D Tiles to an I3S Scene Layer
-  Package, mapping the batch-table attributes onto I3S feature fields.
-- **`pipeline/normalize_slpk.py`** re-gzips the package's `.gz` resources, which
-  tile-converter writes uncompressed, so the result is spec-compliant.
-
-Georeference (longitude / latitude / ground elevation) is baked at conversion time
-as a UTM offset; re-run with different coordinates to relocate a model.
-
-## Toolchain
-
-- [py3dtilers](https://github.com/VCityTeam/py3dtilers) / [py3dtiles](https://gitlab.com/py3dtiles/py3dtiles) — IFC → 3D Tiles
-- [IfcOpenShell](https://ifcopenshell.org/) — IFC geometry + property engine
-- [loaders.gl tile-converter](https://loaders.gl/docs/modules/tile-converter) — 3D Tiles ↔ I3S
+[IfcConvert](https://ifcopenshell.org/) is a single prebuilt binary from IfcOpenShell
+that reads IFC2x3 and IFC4 and writes glTF binary. `--center-model-geometry` centres the
+mesh at the origin for clean placement.
