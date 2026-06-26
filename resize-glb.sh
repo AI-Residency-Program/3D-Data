@@ -8,8 +8,9 @@
 # different size. (See scale-glb.mjs for why we scale vertices, not a node
 # transform: the ArcGIS Maps SDK ignores node transforms.)
 #
-# Uses @gltf-transform — installed once via `npm install` (node_modules is
-# gitignored), driven by scale-glb.mjs.
+# Backed by scale-glb.mjs (pure Node, no dependencies): it edits only the
+# POSITION bytes in the GLB's binary buffer and leaves the rest of the file
+# byte-for-byte identical, so the model looks exactly the same at a new size.
 #
 # Usage:
 #   ./resize-glb.sh free_traffic_barrier_barrel.glb 1.3   # 30% larger
@@ -43,12 +44,6 @@ fi
 
 NAME="$(basename "$SRC")"
 mkdir -p "$PROC"
-
-# ---- @gltf-transform (installed once via npm; node_modules is gitignored) --
-if [ ! -d "$ROOT/node_modules/@gltf-transform" ]; then
-  echo ">> installing dependencies — first run only…"
-  ( cd "$ROOT" && npm install --no-audit --no-fund >/dev/null 2>&1 )
-fi
 
 echo "[$NAME] scaling by ${FACTOR}x…"
 node "$ROOT/scale-glb.mjs" "$SRC" "$PROC/$NAME" "$FACTOR"
