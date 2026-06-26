@@ -1,0 +1,14 @@
+{
+  "name": "3d-data-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tooling for the 3D_Data digital-twin asset pipeline.",
+  "scripts": {
+    "resize": "node scale-glb.mjs"
+  },
+  "dependencies": {
+    "@gltf-transform/core": "^4.4.0",
+    "@gltf-transform/extensions": "^4.4.0"
+  }
+}

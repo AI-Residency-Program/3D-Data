@@ -3,3 +3,6 @@
 
 # logs
 *.log
+
+# node deps for resize-glb.sh (reinstalled by npm install)
+node_modules/
