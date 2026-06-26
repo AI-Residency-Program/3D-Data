@@ -1,9 +1,43 @@
 # 3D_Data
 
-## Gotchas
+## Resizing a model (do this — same as the traffic barrel)
 
-- **Scaling a GLB:** The ArcGIS Maps SDK app that loads these models ignores top-level glTF node transforms. Setting a root-node `scale` has no visible effect. To actually resize a model, bake the factor directly into the mesh vertex positions (multiply each POSITION accessor) and reset node scale/translation to identity. See `scripts`-style approach using `@gltf-transform/core`.
-- **Always register extensions when re-saving a GLB:** create the `NodeIO` with `.registerExtensions(ALL_EXTENSIONS)` (from `@gltf-transform/extensions`). An unregistered `NodeIO` silently **drops** material extensions like `KHR_materials_specular` on write, which changes how the model renders.
-- **Sketchfab/FBX-derived models often bake their real scale into a deep node (e.g. a `*.fbx` node with `scale 0.01`).** Before resetting node transforms, bake the full hierarchy into the vertices (`flatten()` + `clearNodeTransform()`); naively zeroing node transforms can blow the model up ~100x.
-- **`metallic = 1` materials render black** in viewers without environment reflection/IBL (e.g. the street lamp). This is a lighting/material trait, not a texture loss — the base-color texture only tints reflections on a full metal. Lower `metallicFactor` to reveal the painted base color.
-- GitHub may serve the raw `.glb` through a CDN cache, so a hard refresh (or cache-busting query param) may be needed to pick up an updated file.
+To resize a `.glb`, run the repo tool. It reads from `original/` and writes to `processed/`:
+
+```bash
+./resize-glb.sh <model.glb> <factor>     # factor > 1 bigger, < 1 smaller
+./resize-glb.sh free_traffic_barrier_barrel.glb 1.3   # 30% bigger
+./resize-glb.sh street_lamp.glb 0.05                  # 1/20th size
+```
+
+This is the **only** approved way to resize. Do exactly this — do not improvise a different method.
+
+**How it works (and why):** `resize-glb.sh` calls `scale-glb.mjs`, a dependency-free Node
+script that parses the GLB chunks and multiplies **only the POSITION float values** in the
+binary buffer (updating each accessor's min/max). Everything else — node hierarchy,
+materials, textures, normals, tangents, UVs, extensions, buffer layout, generator tag — is
+written back **byte-for-byte identical**. The model looks exactly the same, just a different
+size. Confirm with: JSON diff shows only min/max changed; texture bytes unchanged.
+
+**Do NOT:**
+- **Do NOT use a glTF library (`@gltf-transform`, gltf-pipeline, etc.) to resize.** Their save
+  re-serializes the whole asset — interleaving vertex attributes and reorganizing buffer
+  views — and that structural rewrite makes the ArcGIS app render the model **dark/colorless**
+  even though materials and textures are unchanged. The surgical byte edit avoids this.
+- **Do NOT `flatten()` / reset node transforms.** Collapsing the Sketchfab/FBX node hierarchy
+  changes which transforms ArcGIS applies vs. ignores, breaking orientation/lighting.
+- **Do NOT touch the material** (emissive, metallicFactor, etc.) when the task is to resize.
+  The goal is "same look, new size." Only change a material if explicitly asked to fix rendering.
+
+## Other gotchas
+
+- **ArcGIS ignores top-level glTF node transforms,** so setting a root-node `scale` has no
+  visible effect — that's why resizing must bake into the POSITION values (done by the tool above).
+- **`metallic = 1` materials render dark** in viewers without environment reflection/IBL (e.g.
+  the street lamp). This is a lighting/material trait, not a texture loss — the base-color
+  texture only tints reflections on a full metal. This is independent of size; resizing does
+  not change it. To reveal the painted color, lower `metallicFactor`, or drive the emissive
+  channel from the base-color texture — but only do this if asked to change appearance.
+- **GitHub serves the raw `.glb` through a CDN cache,** so after pushing, a hard refresh (or a
+  cache-busting query param) may be needed before the app picks up the updated file. A "still
+  looks wrong" report immediately after a push is often just the stale cached file.
